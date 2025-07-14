@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="demo.gif" width="600" alt="ClipboardTool Demo"/>
+  <img src="demo.gif" width="800" alt="ClipboardTool Demo"/>
 </p>
 
 <h1 align="center">📋 ClipboardTool</h1>
