@@ -13,8 +13,9 @@
 ## 🚀 Features
 
 - ✅ Get current clipboard contents
+- 📌 Bookmark clipboard entries for quick reuse
 - ⚡ Swift and lightweight
-
+- 🔄 Start at system login (via Login Items or Launch Agent)
 
 ---
 
@@ -25,5 +26,3 @@ To run the tool:
 ```bash
 swift ClipboardTool.swift
 ```
-
-- 🔄 Add application via System Login Items & Extensions under System Settings or use Launch Agent
