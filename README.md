@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://media.giphy.com/media/l0MYOUI5XfRkFvybG/giphy.gif" width="150" alt="Clipboard Animation"/>
+  <img src="demo.gif" width="600" alt="ClipboardTool Demo"/>
 </p>
 
 <h1 align="center">📋 ClipboardTool</h1>
