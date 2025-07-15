@@ -25,7 +25,7 @@
 ```bash
 # Clone the repository
 git clone "https://github.com/elishaJ/Clipboard.git"
-cd Clipboard
+cd ClipboardTool
 
 # Run the pre-built binary
 ./Clipboard
@@ -35,7 +35,7 @@ cd Clipboard
 ```bash
 # Clone the repository
 git clone "https://github.com/elishaJ/Clipboard.git"
-cd Clipboard
+cd ClipboardTool
 
 # Compile and run
 swift ClipboardTool.swift
