@@ -1,7 +1,5 @@
 import Cocoa
 import Carbon
-import CryptoKit
-import Security
 
 class ClipboardManager: NSObject {
     private var statusItem: NSStatusItem!
@@ -11,10 +9,8 @@ class ClipboardManager: NSObject {
     private var lastClipboardContent: String = ""
     private var clipboardTimer: Timer?
     private var hotKeyRef: EventHotKeyRef?
-    private var encryptionKey: SymmetricKey
     
     override init() {
-        self.encryptionKey = ClipboardManager.getOrCreateEncryptionKey()
         super.init()
         setupStatusItem()
         setupPopover()
@@ -74,23 +70,20 @@ class ClipboardManager: NSObject {
     }
     
     private func addToHistory(content: String) {
-        let isSensitive = isSensitiveContent(content)
-        let processedContent = isSensitive ? encrypt(content) : content
-        let entry = ClipboardEntry(content: processedContent, timestamp: Date(), isEncrypted: isSensitive)
+        let entry = ClipboardEntry(content: content, timestamp: Date())
         
-        // Remove if already exists (compare original content)
-        let originalContent = isSensitive ? content : processedContent
-        clipboardHistory.removeAll { 
-            let entryContent = $0.isEncrypted ? decrypt($0.content) : $0.content
-            return entryContent == originalContent
-        }
+        // Remove if already exists
+        clipboardHistory.removeAll { $0.content == content }
         
+        // Add to beginning
         clipboardHistory.insert(entry, at: 0)
         
+        // Keep max 10 entries
         if clipboardHistory.count > 10 {
             clipboardHistory.removeLast()
         }
         
+        // Update UI
         updateUI()
     }
     
@@ -130,8 +123,7 @@ class ClipboardManager: NSObject {
         updateUI()
     }
     
-    func copyToClipboard(_ entry: ClipboardEntry) {
-        let content = entry.isEncrypted ? decrypt(entry.content) : entry.content
+    func copyToClipboard(_ content: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(content, forType: .string)
@@ -148,101 +140,22 @@ class ClipboardManager: NSObject {
     }
     
     func isBookmarked(_ entry: ClipboardEntry) -> Bool {
-        let entryContent = entry.isEncrypted ? decrypt(entry.content) : entry.content
-        return bookmarkedEntries.contains { 
-            let bookmarkContent = $0.isEncrypted ? decrypt($0.content) : $0.content
-            return bookmarkContent == entryContent
-        }
-    }
-    
-    private func isSensitiveContent(_ content: String) -> Bool {
-        let patterns = [
-            "(?i)password",
-            "(?i)token",
-            "(?i)api[_-]?key",
-            "(?i)secret",
-            "\\b\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}\\b", // Credit card
-            "\\b\\d{3}-\\d{2}-\\d{4}\\b" // SSN
-        ]
-        
-        return patterns.contains { content.range(of: $0, options: .regularExpression) != nil }
-    }
-    
-    private func encrypt(_ text: String) -> String {
-        guard let data = text.data(using: .utf8) else { return text }
-        do {
-            let sealedBox = try AES.GCM.seal(data, using: encryptionKey)
-            return sealedBox.combined?.base64EncodedString() ?? text
-        } catch {
-            return text
-        }
-    }
-    
-    private func decrypt(_ encryptedText: String) -> String {
-        guard let data = Data(base64Encoded: encryptedText) else { return encryptedText }
-        do {
-            let sealedBox = try AES.GCM.SealedBox(combined: data)
-            let decryptedData = try AES.GCM.open(sealedBox, using: encryptionKey)
-            return String(data: decryptedData, encoding: .utf8) ?? encryptedText
-        } catch {
-            return encryptedText
-        }
-    }
-    
-    private static func getOrCreateEncryptionKey() -> SymmetricKey {
-        let keyTag = "com.clipboardtool.encryptionkey"
-        
-        // Try to load existing key
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: keyTag,
-            kSecReturnData as String: true
-        ]
-        
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
-        if status == errSecSuccess, let keyData = result as? Data {
-            return SymmetricKey(data: keyData)
-        }
-        
-        // Create new key
-        let newKey = SymmetricKey(size: .bits256)
-        let keyData = newKey.withUnsafeBytes { Data($0) }
-        
-        let addQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: keyTag,
-            kSecValueData as String: keyData
-        ]
-        
-        SecItemAdd(addQuery as CFDictionary, nil)
-        return newKey
+        return bookmarkedEntries.contains { $0.content == entry.content }
     }
 }
 
 struct ClipboardEntry {
     let content: String
     let timestamp: Date
-    let isEncrypted: Bool
-    
-    init(content: String, timestamp: Date, isEncrypted: Bool = false) {
-        self.content = content
-        self.timestamp = timestamp
-        self.isEncrypted = isEncrypted
-    }
     
     var previewText: String {
-        if isEncrypted {
-            return "🔒 [Encrypted Content]"
-        }
-        
         let maxLength = 35
         let cleaned = content.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\t", with: " ")
             .replacingOccurrences(of: "\r", with: " ")
         
+        // Remove extra whitespace
         let singleSpaced = cleaned.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         
         if singleSpaced.count > maxLength {
@@ -495,7 +408,7 @@ class ClipboardViewController: NSViewController {
     
     @objc private func copyEntry(_ sender: NSButton) {
         if let entry = findEntry(by: sender.tag) {
-            clipboardManager?.copyToClipboard(entry)
+            clipboardManager?.copyToClipboard(entry.content)
         }
     }
     
@@ -532,8 +445,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         clipboardManager = ClipboardManager()
         
-        // Hide dock icon
-        NSApp.setActivationPolicy(.accessory)
+        // Show dock icon
+        NSApp.setActivationPolicy(.regular)
     }
     
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

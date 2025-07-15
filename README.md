@@ -14,7 +14,6 @@
 
 - ✅ Get current clipboard contents
 - 📌 Bookmark clipboard entries for quick reuse
-- 🔒 **Automatic encryption** for sensitive content (passwords, tokens, credit cards)
 - ⚡ Swift and lightweight
 - 🔄 Start at system login (via Login Items or Launch Agent)
 
@@ -60,10 +59,9 @@ swiftc -O ClipboardTool.swift -o ClipboardTool
 ### Controls
 - **Menu bar icon**: Click 📋 to open clipboard history
 - **Hotkey**: Press `Cmd+Shift+V` to toggle popup
-- **Copy**: Click any entry to copy to clipboard (auto-decrypts if needed)
+- **Copy**: Click any entry to copy to clipboard
 - **Bookmark**: Click ☆ to bookmark (★ to unbookmark)
 - **Delete**: Click 🗑 to remove entry
-- **Encrypted entries**: Show 🔒 [Encrypted Content] for sensitive data
 
 ### Auto-start at Login
 To start ClipboardTool automatically:
@@ -71,15 +69,3 @@ To start ClipboardTool automatically:
 2. Click **+** and add the ClipboardTool binary
 3. Or use the compiled binary path in a launch agent
 
-## 🔒 Security Features
-
-### How It Works
-- **AES-256-GCM encryption** for sensitive data
-- **Device keychain** stores encryption key securely
-- **Transparent operation** - encrypted entries show 🔒 icon
-- **Zero configuration** - works automatically
-
-### Privacy
-- Encryption key unique to each device
-- Sensitive data unreadable without the key
-- Regular clipboard text remains unencrypted for performance
