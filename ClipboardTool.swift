@@ -21,8 +21,30 @@ class ClipboardManager: NSObject {
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "📋"
-        statusItem.button?.action = #selector(togglePopover)
+        
+        // Setup click handler
+        statusItem.button?.action = #selector(statusItemClicked(_:))
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem.button?.target = self
+    }
+    
+    @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
+        let event = NSApp.currentEvent!
+        
+        if event.type == .rightMouseUp {
+            // Show menu on right-click
+            let menu = NSMenu()
+            let quitItem = NSMenuItem(title: "Quit Clipboard", action: #selector(quitApp), keyEquivalent: "q")
+            quitItem.target = self
+            menu.addItem(quitItem)
+            
+            statusItem.menu = menu
+            statusItem.button?.performClick(nil)
+            statusItem.menu = nil  // Clear menu after use
+        } else {
+            // Show popover on left-click
+            togglePopover()
+        }
     }
     
     private func setupPopover() {
@@ -141,6 +163,10 @@ class ClipboardManager: NSObject {
     
     func isBookmarked(_ entry: ClipboardEntry) -> Bool {
         return bookmarkedEntries.contains { $0.content == entry.content }
+    }
+    
+    @objc private func quitApp() {
+        NSApplication.shared.terminate(nil)
     }
 }
 

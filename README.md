@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="demo.gif" width="800" alt="ClipboardTool Demo"/>
+  <img src="demo.gif" width="800" alt="Clipboard Demo"/>
 </p>
 
-<h1 align="center">📋 ClipboardTool</h1>
+<h1 align="center">📋 Clipboard</h1>
 
 <p align="center">
   A simple and effective macOS command-line tool for accessing and manipulating clipboard content using Swift.
@@ -24,18 +24,18 @@
 ### Option 1: Use Pre-built Binary
 ```bash
 # Clone the repository
-git clone "https://github.com/elishaJ/ClipboardTool.git"
-cd ClipboardTool
+git clone "https://github.com/elishaJ/Clipboard.git"
+cd Clipboard
 
 # Run the pre-built binary
-./ClipboardTool
+./Clipboard
 ```
 
 ### Option 2: Build from Source
 ```bash
 # Clone the repository
-git clone "https://github.com/elishaJ/ClipboardTool.git"
-cd ClipboardTool
+git clone "https://github.com/elishaJ/Clipboard.git"
+cd Clipboard
 
 # Compile and run
 swift ClipboardTool.swift
@@ -44,16 +44,16 @@ swift ClipboardTool.swift
 ### Option 3: Build Binary
 ```bash
 # Build optimized binary
-swiftc -O ClipboardTool.swift -o ClipboardTool
+swiftc -O ClipboardTool.swift -o Clipboard
 
 # Run the binary
-./ClipboardTool
+./Clipboard
 ```
 
 ## 🛠 Usage
 
 ### Running the Tool
-- **Pre-built binary**: `./ClipboardTool`
+- **Pre-built binary**: `./Clipboard`
 - **From source**: `swift ClipboardTool.swift`
 
 ### Controls
@@ -62,10 +62,10 @@ swiftc -O ClipboardTool.swift -o ClipboardTool
 - **Copy**: Click any entry to copy to clipboard
 - **Bookmark**: Click ☆ to bookmark (★ to unbookmark)
 - **Delete**: Click 🗑 to remove entry
+- **Quit**: Right-click on menu bar icon and select "Quit Clipboard"
 
 ### Auto-start at Login
-To start ClipboardTool automatically:
+To start Clipboard automatically:
 1. Go to **System Preferences** → **Users & Groups** → **Login Items**
-2. Click **+** and add the ClipboardTool binary
+2. Click **+** and add the Clipboard binary or app bundle
 3. Or use the compiled binary path in a launch agent
-
