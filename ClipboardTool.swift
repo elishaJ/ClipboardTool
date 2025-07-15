@@ -135,7 +135,12 @@ class ClipboardManager: NSObject {
     }
     
     func unbookmarkEntry(_ entry: ClipboardEntry) {
+        // Remove from bookmarks
         bookmarkedEntries.removeAll { $0.content == entry.content }
+        
+        // Also remove from history to prevent it from appearing there
+        clipboardHistory.removeAll { $0.content == entry.content }
+        
         updateUI()
     }
     
