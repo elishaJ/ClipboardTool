@@ -10,6 +10,7 @@ class ClipboardManager: NSObject {
     private var lastClipboardContent: String = ""
     private var clipboardTimer: Timer?
     private var hotKeyRef: EventHotKeyRef?
+    private var eventMonitor: Any?
     
     private let historyFile = "clipboard_history.json"
     private let bookmarksFile = "clipboard_bookmarks.json"
@@ -120,6 +121,13 @@ class ClipboardManager: NSObject {
         // Set reference to clipboard manager
         if let viewController = popover.contentViewController as? ClipboardViewController {
             viewController.clipboardManager = self
+        }
+        
+        // Add event monitor to close popover when clicking outside
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            if let strongSelf = self, strongSelf.popover.isShown {
+                strongSelf.popover.performClose(nil)
+            }
         }
     }
     
@@ -269,6 +277,12 @@ class ClipboardManager: NSObject {
     
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
+    }
+    
+    deinit {
+        if let eventMonitor = eventMonitor {
+            NSEvent.removeMonitor(eventMonitor)
+        }
     }
 }
 
