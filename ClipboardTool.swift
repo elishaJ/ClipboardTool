@@ -1,5 +1,6 @@
 import Cocoa
 import Carbon
+import Foundation
 
 class ClipboardManager: NSObject {
     private var statusItem: NSStatusItem!
@@ -10,12 +11,75 @@ class ClipboardManager: NSObject {
     private var clipboardTimer: Timer?
     private var hotKeyRef: EventHotKeyRef?
     
+    private let historyFile = "clipboard_history.json"
+    private let bookmarksFile = "clipboard_bookmarks.json"
+    
     override init() {
         super.init()
+        loadSavedData()
         setupStatusItem()
         setupPopover()
         setupHotKey()
         startClipboardMonitoring()
+    }
+    
+    private func getDocumentsDirectory() -> URL {
+        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        let appSupportDir = paths[0].appendingPathComponent("Clipboard")
+        
+        // Create directory if it doesn't exist
+        try? FileManager.default.createDirectory(at: appSupportDir, withIntermediateDirectories: true)
+        
+        return appSupportDir
+    }
+    
+    private func loadSavedData() {
+        loadHistory()
+        loadBookmarks()
+    }
+    
+    private func loadHistory() {
+        let fileURL = getDocumentsDirectory().appendingPathComponent(historyFile)
+        guard let data = try? Data(contentsOf: fileURL) else { return }
+        
+        do {
+            clipboardHistory = try JSONDecoder().decode([ClipboardEntry].self, from: data)
+        } catch {
+            print("Error loading history: \(error)")
+        }
+    }
+    
+    private func loadBookmarks() {
+        let fileURL = getDocumentsDirectory().appendingPathComponent(bookmarksFile)
+        guard let data = try? Data(contentsOf: fileURL) else { return }
+        
+        do {
+            bookmarkedEntries = try JSONDecoder().decode([ClipboardEntry].self, from: data)
+        } catch {
+            print("Error loading bookmarks: \(error)")
+        }
+    }
+    
+    private func saveHistory() {
+        let fileURL = getDocumentsDirectory().appendingPathComponent(historyFile)
+        
+        do {
+            let data = try JSONEncoder().encode(clipboardHistory)
+            try data.write(to: fileURL)
+        } catch {
+            print("Error saving history: \(error)")
+        }
+    }
+    
+    private func saveBookmarks() {
+        let fileURL = getDocumentsDirectory().appendingPathComponent(bookmarksFile)
+        
+        do {
+            let data = try JSONEncoder().encode(bookmarkedEntries)
+            try data.write(to: fileURL)
+        } catch {
+            print("Error saving bookmarks: \(error)")
+        }
     }
     
     private func setupStatusItem() {
@@ -85,6 +149,7 @@ class ClipboardManager: NSObject {
         let pasteboard = NSPasteboard.general
         guard let currentContent = pasteboard.string(forType: .string),
               !currentContent.isEmpty,
+              !currentContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               currentContent != lastClipboardContent else { return }
         
         lastClipboardContent = currentContent
@@ -100,10 +165,23 @@ class ClipboardManager: NSObject {
         // Add to beginning
         clipboardHistory.insert(entry, at: 0)
         
-        // Keep max 10 entries
-        if clipboardHistory.count > 10 {
-            clipboardHistory.removeLast()
+        // Ensure we maintain 10 non-bookmarked entries in history
+        let bookmarkedContents = Set(bookmarkedEntries.map { $0.content })
+        let nonBookmarkedEntries = clipboardHistory.filter { !bookmarkedContents.contains($0.content) }
+        
+        // If we have more than 10 non-bookmarked entries, remove the oldest ones
+        if nonBookmarkedEntries.count > 10 {
+            // Find the oldest non-bookmarked entries to remove
+            let entriesToRemove = nonBookmarkedEntries.suffix(nonBookmarkedEntries.count - 10)
+            for entry in entriesToRemove {
+                if let index = clipboardHistory.firstIndex(where: { $0.content == entry.content }) {
+                    clipboardHistory.remove(at: index)
+                }
+            }
         }
+        
+        // Save history
+        saveHistory()
         
         // Update UI
         updateUI()
@@ -131,6 +209,9 @@ class ClipboardManager: NSObject {
             bookmarkedEntries.removeLast()
         }
         
+        // Save bookmarks
+        saveBookmarks()
+        
         updateUI()
     }
     
@@ -138,8 +219,8 @@ class ClipboardManager: NSObject {
         // Remove from bookmarks
         bookmarkedEntries.removeAll { $0.content == entry.content }
         
-        // Also remove from history to prevent it from appearing there
-        clipboardHistory.removeAll { $0.content == entry.content }
+        // Save changes
+        saveBookmarks()
         
         updateUI()
     }
@@ -147,6 +228,11 @@ class ClipboardManager: NSObject {
     func deleteEntry(_ entry: ClipboardEntry) {
         clipboardHistory.removeAll { $0.content == entry.content }
         bookmarkedEntries.removeAll { $0.content == entry.content }
+        
+        // Save changes
+        saveHistory()
+        saveBookmarks()
+        
         updateUI()
     }
     
@@ -170,12 +256,23 @@ class ClipboardManager: NSObject {
         return bookmarkedEntries.contains { $0.content == entry.content }
     }
     
+    func clearHistory() {
+        // Keep bookmarked entries
+        let bookmarkedContents = Set(bookmarkedEntries.map { $0.content })
+        clipboardHistory.removeAll { !bookmarkedContents.contains($0.content) }
+        
+        // Save changes
+        saveHistory()
+        
+        updateUI()
+    }
+    
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
     }
 }
 
-struct ClipboardEntry {
+struct ClipboardEntry: Codable {
     let content: String
     let timestamp: Date
     
@@ -225,16 +322,19 @@ class ClipboardViewController: NSViewController {
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
         
         // Create stack view
         stackView = NSStackView()
         stackView.orientation = .vertical
         stackView.spacing = 0
         stackView.alignment = .leading
-        stackView.distribution = .fill
+        stackView.distribution = .gravityAreas
         stackView.translatesAutoresizingMaskIntoConstraints = false
         
         // Create a container view for the stack view
+        let clipView = scrollView.contentView
         let containerView = NSView()
         containerView.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(stackView)
@@ -254,13 +354,14 @@ class ClipboardViewController: NSViewController {
             stackView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
             stackView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
             stackView.widthAnchor.constraint(equalTo: scrollView.widthAnchor, constant: -16),
+            stackView.bottomAnchor.constraint(lessThanOrEqualTo: containerView.bottomAnchor),
             
             // Container view constraints
-            containerView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
-            containerView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
-            containerView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
-            containerView.bottomAnchor.constraint(greaterThanOrEqualTo: scrollView.contentView.bottomAnchor),
-            containerView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor)
+            containerView.topAnchor.constraint(equalTo: clipView.topAnchor),
+            containerView.leadingAnchor.constraint(equalTo: clipView.leadingAnchor),
+            containerView.trailingAnchor.constraint(equalTo: clipView.trailingAnchor),
+            containerView.widthAnchor.constraint(equalTo: clipView.widthAnchor),
+            containerView.heightAnchor.constraint(greaterThanOrEqualTo: clipView.heightAnchor)
         ])
         
         updateDisplay()
@@ -278,14 +379,20 @@ class ClipboardViewController: NSViewController {
         // Clear existing views
         stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
         
-        // Add bookmarks section only if there are bookmarks
-        if !bookmarks.isEmpty {
-            let bookmarkHeader = createSectionHeader("📌 Bookmarks")
-            stackView.addArrangedSubview(bookmarkHeader)
-            
-            // Add separator after header
-            stackView.addArrangedSubview(createSeparator())
-            
+        // Always add bookmarks section at the top
+        let bookmarkHeader = createSectionHeader("📌 Bookmarks")
+        stackView.addArrangedSubview(bookmarkHeader)
+        
+        // Add separator after header
+        stackView.addArrangedSubview(createSeparator())
+        
+        if bookmarks.isEmpty {
+            let emptyLabel = NSTextField(labelWithString: "No bookmarks yet")
+            emptyLabel.textColor = .secondaryLabelColor
+            emptyLabel.font = .systemFont(ofSize: 12)
+            emptyLabel.alignment = .center
+            stackView.addArrangedSubview(emptyLabel)
+        } else {
             for (index, bookmark) in bookmarks.enumerated() {
                 let entryView = createEntryView(bookmark, isBookmarked: true)
                 stackView.addArrangedSubview(entryView)
@@ -295,19 +402,19 @@ class ClipboardViewController: NSViewController {
                     stackView.addArrangedSubview(createSeparator())
                 }
             }
-            
-            // Add thicker separator between sections
-            stackView.addArrangedSubview(createThickSeparator())
         }
         
-        // Always add history section
-        let historyHeader = createSectionHeader("🕒 History")
-        stackView.addArrangedSubview(historyHeader)
+        // Add thicker separator between sections
+        stackView.addArrangedSubview(createThickSeparator())
+        
+        // Add history section
+        let historyHeaderView = createSectionHeaderWithClearButton("🕒 History")
+        stackView.addArrangedSubview(historyHeaderView)
         
         // Add separator after header
         stackView.addArrangedSubview(createSeparator())
         
-        // Filter out bookmarked entries from history
+        // Filter out bookmarked entries from history display
         let bookmarkedContents = Set(bookmarks.map { $0.content })
         let unbookmarkedHistory = history.filter { !bookmarkedContents.contains($0.content) }
         
@@ -363,6 +470,38 @@ class ClipboardViewController: NSViewController {
         ])
         
         return container
+    }
+    
+    private func createSectionHeaderWithClearButton(_ title: String) -> NSView {
+        let label = NSTextField(labelWithString: title)
+        label.font = .boldSystemFont(ofSize: 13)
+        label.textColor = .labelColor
+        
+        let clearButton = NSButton(title: "Clear", target: self, action: #selector(clearHistory))
+        clearButton.bezelStyle = .rounded
+        clearButton.font = .systemFont(ofSize: 11)
+        clearButton.controlSize = .small
+        
+        let container = NSView()
+        container.addSubview(label)
+        container.addSubview(clearButton)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        clearButton.translatesAutoresizingMaskIntoConstraints = false
+        
+        NSLayoutConstraint.activate([
+            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+            label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -4),
+            
+            clearButton.centerYAnchor.constraint(equalTo: label.centerYAnchor),
+            clearButton.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8)
+        ])
+        
+        return container
+    }
+    
+    @objc private func clearHistory() {
+        clipboardManager?.clearHistory()
     }
     
     private func createEntryView(_ entry: ClipboardEntry, isBookmarked: Bool) -> NSView {
